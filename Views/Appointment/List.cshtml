@@ -1,0 +1,381 @@
+@{
+    ViewData["Title"] = "Appointments";
+    Layout = "~/Views/Shared/_AppointmentLayout.cshtml";
+}
+<script src="~/js/sweetalert2.js"></script>
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>Appointments</h2>
+            <button id="newAppointmentBtn"
+                class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-primary">
+                <i class="k-icon k-i-plus"></i> New Appointment
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <div id="appointmentGrid"></div>
+        </div>
+    </div>
+</div>
+
+<div id="appointmentWindow" style="display: none;">
+    <div id="appointmentForm"></div>
+</div>
+
+@section Scripts {
+    <script>
+        let appointmentGrid;
+        let departments = [];
+        let currentPatientId = parseInt(sessionStorage.getItem("c_patientid")) || 0;
+        let appointmentWindow;
+        let appointmentForm;
+
+        $(document).ready(function () {
+            if (currentPatientId === 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Please login to view appointments.',
+                    confirmButtonColor: '#3085d6'
+                }).then(() => {
+                    window.location.href = '/Patient/Login';
+                });
+                return;
+            }
+
+            $.ajax({
+                url: '/Appointment/GetDepartments',
+                type: 'GET',
+                success: function (response) {
+                    if (response.success) {
+                        departments = response.departments;
+                        initializeGrid();
+                        initializeWindow();
+                        initializeForm();
+
+                        $("#newAppointmentBtn").on("click", function () {
+                            appointmentWindow.title("New Appointment");
+                            appointmentForm.clear();
+                            appointmentForm.setOptions({
+                                formData: {
+                                    c_appointmentid: "",
+                                    c_patientid: currentPatientId,
+                                    c_departmentid: "",
+                                    c_date: "",
+                                    c_time: ""
+                                }
+                            });
+                            appointmentWindow.open();
+                        });
+                    }
+                }
+            });
+        });
+
+        function initializeWindow() {
+            appointmentWindow = $("#appointmentWindow").kendoWindow({
+                width: "600px",
+                title: "Appointment",
+                visible: false,
+                modal: true,
+                actions: ["Close"],
+                close: function () {
+                    appointmentForm.clear();
+                },
+                open: function () {
+                    this.center();
+                }
+            }).data("kendoWindow");
+        }
+
+        function initializeForm() {
+            appointmentForm = $("#appointmentForm").kendoForm({
+                formData: {
+                    c_appointmentid: "",
+                    c_patientid: currentPatientId,
+                    c_departmentid: "",
+                    c_date: "",
+                    c_time: ""
+                },
+                items: [
+                    {
+                        field: "c_departmentid",
+                        label: "Department",
+                        editor: "DropDownList",
+                        editorOptions: {
+                            dataTextField: "c_departmentname",
+                            dataValueField: "c_departmentid",
+                            dataSource: departments,
+                            placeholder: "Select Department"
+                        },
+                        validation: { required: true }
+                    },
+                    {
+                        field: "c_date",
+                        label: "Date",
+                        editor: "DatePicker",
+                        editorOptions: {
+                            format: "yyyy-MM-dd",
+                            min: new Date()
+                        },
+                        validation: { required: true }
+                    },
+                    {
+                        field: "c_time",
+                        label: "Time",
+                        editor: "TimePicker",
+                        editorOptions: {
+                            format: "HH:mm",
+                            interval: 30
+                        },
+                        validation: { required: true }
+                    }
+                ],
+                submit: function (e) {
+                    e.preventDefault();
+                    saveAppointment();
+                },
+                buttonsTemplate: '<button class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-base cancel-btn">Cancel</button>' +
+                    '<button class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-primary save-btn">Save</button>'
+            }).data("kendoForm");
+
+
+            $("#appointmentForm").on("click", ".cancel-btn", function () {
+                appointmentWindow.close();
+            });
+
+            $("#appointmentForm").on("click", ".save-btn", function () {
+                saveAppointment();
+            });
+        }
+
+        function initializeGrid() {
+            appointmentGrid = $("#appointmentGrid").kendoGrid({
+                dataSource: {
+                    transport: {
+                        read: {
+                            url: '/Appointment/GetAppointmentsByPatient',
+                            data: { patientId: currentPatientId },
+                            dataType: "json"
+                        }
+                    },
+                    schema: {
+                        data: "data",
+                        total: "total"
+                    }
+                },
+                columns: [
+                    @* { field: "c_appointmentid", title: "ID", width: 100 },
+                    { field: "c_patientName", title: "Patient Name", width: 150 }, *@
+                    { field: "c_departmentName", title: "Department", width: 150 },
+                    {
+                        field: "c_date",
+                        title: "Date",
+                        width: 120,
+                        template: function (dataItem) {
+                            return kendo.toString(new Date(dataItem.c_date), "yyyy-MM-dd");
+                        }
+                    },
+                    {
+                        field: "c_time",
+                        title: "Time",
+                        width: 120,
+                        template: function (dataItem) {
+                            return kendo.toString(new Date("2000-01-01T" + dataItem.c_time), "HH:mm");
+                        }
+                    },
+                    {
+                        command: [
+                            {
+                                name: "edit",
+                                text: "Edit",
+                                click: function (e) {
+                                    e.preventDefault();
+                                    var dataItem = this.dataItem($(e.currentTarget).closest("tr"));
+                                    openEditModal(dataItem);
+                                }
+                            },
+                            {
+                                name: "delete",
+                                text: "Delete",
+                                click: function (e) {
+                                    e.preventDefault();
+                                    console.log("Delete button clicked");
+                                    var dataItem = this.dataItem($(e.currentTarget).closest("tr"));
+                                    console.log("DataItem:", dataItem);
+                                    if (dataItem && dataItem.c_appointmentid) {
+                                        deleteAppointment(dataItem.c_appointmentid);
+                                    } else {
+                                        console.error("No appointment ID found");
+                                    }
+                                }
+                            }
+                        ],
+                        width: 200
+                    }
+                ],
+                height: 500,
+
+                scrollable: true,
+                sortable: true,
+                filterable: true,
+                pageable: {
+                    refresh: true,
+                    pageSizes: true,
+                    buttonCount: 5
+                }
+            }).data("kendoGrid");
+
+            // Add event handler for delete button
+            $("#appointmentGrid").on("click", ".k-grid-delete", function (e) {
+                e.preventDefault();
+                console.log("Delete button clicked via event handler");
+                var dataItem = appointmentGrid.dataItem($(this).closest("tr"));
+                console.log("DataItem:", dataItem);
+                if (dataItem && dataItem.c_appointmentid) {
+                    deleteAppointment(dataItem.c_appointmentid);
+                } else {
+                    console.error("No appointment ID found");
+                }
+            });
+        }
+
+        function openEditModal(dataItem) {
+            appointmentWindow.title("Edit Appointment");
+            appointmentForm.setOptions({
+                formData: {
+                    c_appointmentid: dataItem.c_appointmentid,
+                    c_patientid: dataItem.c_patientid,
+                    c_departmentid: dataItem.c_departmentid,
+                    c_date: dataItem.c_date,
+                    c_time: dataItem.c_time
+                }
+            });
+            appointmentWindow.open();
+        }
+
+        function saveAppointment() {
+            if (!appointmentForm.validate()) {
+                return;
+            }
+
+            var formData = {
+                c_appointmentid: appointmentForm.options.formData.c_appointmentid || 0,
+                c_patientid: currentPatientId,
+                c_departmentid: $("#appointmentForm").find("[name='c_departmentid']").data("kendoDropDownList").value(),
+                c_date: $("#appointmentForm").find("[name='c_date']").data("kendoDatePicker").value(),
+                c_time: $("#appointmentForm").find("[name='c_time']").data("kendoTimePicker").value()
+            };
+
+            if (formData.c_date) {
+                formData.c_date = kendo.toString(new Date(formData.c_date), "yyyy-MM-dd");
+            }
+            if (formData.c_time) {
+                var timeValue = new Date(formData.c_time);
+                formData.c_time = kendo.toString(timeValue, "HH:mm");
+            }
+
+            console.log("Submitting form data:", formData);
+
+            var appointmentId = formData.c_appointmentid;
+            var url = appointmentId ? '/Appointment/Edit' : '/Appointment/Create';
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                data: formData,
+                success: function (response) {
+                    if (response.success) {
+                        appointmentWindow.close();
+                        appointmentGrid.dataSource.read();
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Success!',
+                            text: response.message,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        appointmentWindow.close();
+                        appointmentGrid.dataSource.read();
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: response.message,
+                            confirmButtonColor: '#3085d6'
+                        });
+                    }
+                },
+                error: function (xhr) {
+                    appointmentWindow.close();
+                    appointmentGrid.dataSource.read();
+                    console.error('Error response:', xhr.responseText);
+                    let errorMessage = 'An error occurred while saving the appointment.';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+                    appointmentWindow.close();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error!',
+                        text: errorMessage,
+                        confirmButtonColor: '#3085d6'
+                    });
+                }
+            });
+        }
+
+        function deleteAppointment(id) {
+            console.log("deleteAppointment called with ID:", id);
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You won't be able to revert this!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                console.log("SweetAlert result:", result);
+                if (result.isConfirmed) {
+                    console.log("Sending delete request for ID:", id);
+                    $.ajax({
+                        url: '/Appointment/Delete',
+                        type: 'POST',
+                        data: { id: id },
+                        success: function (response) {
+                            console.log("Delete response:", response);
+                            if (response.success) {
+                                appointmentGrid.dataSource.read();
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Deleted!',
+                                    text: response.message,
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error!',
+                                    text: response.message
+                                });
+                            }
+                        },
+                        error: function (xhr) {
+                            console.error('Delete error:', xhr);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error!',
+                                text: 'An error occurred while deleting the appointment.'
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    </script>
+}

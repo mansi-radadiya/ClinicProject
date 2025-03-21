@@ -1,0 +1,177 @@
+@model EmptyMVC.Models.t_users
+
+@{
+    ViewData["Title"] = "Update Profile";
+    Layout = "~/Views/Shared/_AppointmentLayout.cshtml";
+}
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>Profile Details</h2>
+            <button id="updateProfileBtn"
+                class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-primary">
+                <i class="k-icon k-i-edit"></i> Update Profile
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <div id="profileDetails">
+                <p><strong>Name:</strong> <span id="profileName">@Model.c_name</span></p>
+                <p><strong>Email:</strong> <span id="profileEmail">@Model.c_email</span></p>
+                <p><strong>Mobile:</strong> <span id="profileMobile">@Model.c_mobile</span></p>
+                <p><strong>Gender:</strong> <span id="profileGender">@Model.c_gender</span></p>
+                <p><strong>State:</strong> <span id="profileState">@Model.c_state</span></p>
+                <p><strong>City:</strong> <span id="profileCity">@Model.c_city</span></p>
+                @* <p><strong>Profile Picture:</strong> 
+                    <img id="profileImage" src="~/profile_images/" 
+                        alt="Profile Picture" width="100" />
+                </p> *@
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Window for Profile Update -->
+<div id="profileWindow" style="display: none;">
+    <div id="profileForm"></div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        let profileWindow;
+        let profileForm;
+
+        function initializeForm() {
+            profileForm = $("#profileForm").kendoForm({
+                formData: {
+                    c_name: $("#profileName").text(),
+                    c_email: $("#profileEmail").text(),
+                    c_mobile: $("#profileMobile").text(),
+                    c_gender: $("#profileGender").text(),
+                    c_state: $("#profileState").text(),
+                    c_city: $("#profileCity").text(),
+                    ProfilePicture: ""
+                },
+                items: [
+                    { field: "c_name", label: "Name", validation: { required: true } },
+                    { field: "c_mobile", label: "Mobile", validation: { required: true } },
+                    {
+                        field: "c_gender",
+                        label: "Gender",
+                        editor: "DropDownList",
+                        editorOptions: { dataSource: ["Male", "Female", "Other"] },
+                        validation: { required: true }
+                    },
+                    {
+                        field: "c_state",
+                        label: "State",
+                        editor: "DropDownList",
+                        editorOptions: {
+                            dataSource: ["Gujarat", "Maharashtra", "Rajasthan", "Kerala"]
+                        },
+                        validation: { required: true }
+                    },
+                    {
+                        field: "c_city",
+                        label: "City",
+                        editor: "DropDownList",
+                        editorOptions: {
+                            dataSource: [],
+                            enable: false // Initially disabled
+                        },
+                        validation: { required: true }
+                    },
+                    {
+                        field: "ProfilePicture",
+                        label: "Profile Picture",
+                        editor: function (container, options) {
+                            $('<input type="file" name="ProfilePicture" />')
+                                .appendTo(container)
+                                .kendoUpload({ multiple: false });
+                        }
+                    }
+                ],
+                buttonsTemplate: `
+                    <button class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-base cancel-btn">Cancel</button>
+                    <button class="k-button k-button-md k-rounded-md k-button-solid k-button-solid-primary save-btn">Save</button>
+                `
+            }).data("kendoForm");
+
+            // Get dropdown instances
+            const stateDropdown = profileForm.element.find("[name='c_state']").data("kendoDropDownList");
+            const cityDropdown = profileForm.element.find("[name='c_city']").data("kendoDropDownList");
+
+            // Cities data
+            const cities = {
+                Gujarat: ["Ahmedabad", "Surat", "Vadodara"],
+                Maharashtra: ["Mumbai", "Pune", "Nagpur"],
+                Rajasthan: ["Jaipur", "Udaipur", "Jodhpur"],
+                Kerala: ["Kochi", "Thiruvananthapuram", "Kozhikode"]
+            };
+
+            // State change event
+            stateDropdown.bind("change", function () {
+                const state = this.value();
+                cityDropdown.setDataSource(cities[state] || []);
+                cityDropdown.value("");
+                cityDropdown.enable(state !== "");
+            });
+
+            // Button events
+            $(".cancel-btn").on("click", function () {
+                profileWindow.close();
+            });
+
+            $(".save-btn").on("click", function () {
+                saveProfile();
+            });
+        }
+
+        // Open Profile Edit Form
+        $("#updateProfileBtn").on("click", function () {
+            if (!profileWindow) {
+                profileWindow = $("#profileWindow").kendoWindow({
+                    title: "Edit Profile",
+                    modal: true,
+                    visible: false,
+                    width: "500px",
+                    close: function () { profileForm.destroy(); }
+                }).data("kendoWindow");
+            }
+
+            profileWindow.center().open();
+            $("#profileForm").html(""); // Clear form before re-initializing
+            initializeForm();
+        });
+
+        function saveProfile() {
+            const formData = profileForm.value();
+            console.log("Saving Profile Data:", formData);
+
+            // Here, make an AJAX call to save the data
+            $.ajax({
+                url: "/Profile/UpdateProfile",
+                type: "POST",
+                data: formData,
+                success: function (response) {
+                    alert("Profile updated successfully!");
+                    profileWindow.close();
+
+                    // Update UI with new data
+                    $("#profileName").text(formData.c_name);
+                    $("#profileEmail").text(formData.c_email);
+                    $("#profileMobile").text(formData.c_mobile);
+                    $("#profileGender").text(formData.c_gender);
+                    $("#profileState").text(formData.c_state);
+                    $("#profileCity").text(formData.c_city);
+                },
+                error: function () {
+                    alert("Error updating profile. Please try again.");
+                }
+            });
+        }
+    });
+</script>

@@ -1,0 +1,79 @@
+<h1 class="text-center"> Login</h1>
+
+<form id="PatientLogin" method="post" enctype="multipart/form-data" class="mx-auto mt-5 p-4 border rounded shadow"
+    style="width: 800px;">
+</form>
+<script src="~/js/Patient/Login.js"></script>
+<script src="~/js/sweetalert2.js"></script>
+
+<script>
+    $('#PatientLogin').submit(function (e) {
+        e.preventDefault()
+
+        var formData = new FormData()
+        var Email = $("#c_email").val()
+        var Pwd = $("#c_password").val()
+
+        formData.append("c_email", Email)
+        formData.append("c_password", Pwd)
+        $.ajax({
+            url: "/Patient/Login",
+            type: "post",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                console.log(response)
+                @* if (response.sucess) {
+                    Swal.fire({
+                        title: "Login successfully",
+                        text: "You clicked the button!",
+                        icon: "success"
+                    }).then((result) => {
+                        if (result.value) {
+                            window.location.href = "http://localhost:5273/Customer/Index";
+                        }
+                    });
+                } *@
+                
+                if (response.success) {
+
+                    const userData = response.userData;
+                    sessionStorage.setItem("c_patientid", userData.c_patientid);
+                    sessionStorage.setItem("c_name", userData.c_name);
+                    sessionStorage.setItem("c_email", userData.c_email);
+                    sessionStorage.setItem("c_password", userData.c_password);
+                    sessionStorage.setItem("c_gender", userData.c_gender || "");
+                    sessionStorage.setItem("c_mobile", userData.c_mobile || "");
+                    sessionStorage.setItem("c_state", userData.c_state || "");
+                    sessionStorage.setItem("c_city", userData.c_city || "");
+                    sessionStorage.setItem("c_image", userData.c_image || "default.png");
+
+                    Swal.fire({
+                        title: "Login Successful!",
+                        text: response.message,
+                        icon: "success"
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = response.redirectUrl;
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: "Login Failed!",
+                        text: response.message,
+                        icon: "error"
+                    });
+                }
+            },
+            error(xhr) {
+                @* alert("Error approving user: " + xhr.responseText); *@
+                    Swal.fire({
+                        title: "Error!",
+                        text: "An unexpected error occurred. Please try again later.",
+                        icon: "error"
+                    });
+            }
+        })
+    })
+</script>
